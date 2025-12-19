@@ -1,0 +1,66 @@
+===========================================
+COMANDOS RAPIDOS PARA GENERAR APK
+===========================================
+
+IMPORTANTE: Ejecuta estos comandos en una terminal donde Node.js v20 esté activo.
+Verifica primero: node --version (debe mostrar v20.x.x)
+
+Si no tienes Node.js v20 activo:
+1. Abre PowerShell como Administrador
+2. Ejecuta: nvm use 20
+3. Verifica: node --version
+
+===========================================
+PASO 1: Instalar EAS CLI
+===========================================
+npm install -g eas-cli
+
+===========================================
+PASO 2: Iniciar sesión en Expo
+===========================================
+eas login
+
+(Si no tienes cuenta, créala en: https://expo.dev/signup)
+
+===========================================
+PASO 3: Configurar proyecto (solo primera vez)
+===========================================
+cd "C:\Users\Usuario\Desktop\Ohmelon V1.2"
+eas build:configure
+
+===========================================
+PASO 4: Generar APK
+===========================================
+eas build --platform android --profile apk
+
+O simplemente:
+npm run build:android:apk
+
+===========================================
+DESPUÉS DEL BUILD
+===========================================
+
+1. Espera a que termine (10-20 minutos la primera vez)
+2. Recibirás un enlace en la terminal
+3. Descarga el APK desde ese enlace
+4. Transfiere el APK a tu teléfono
+5. Instala el APK en tu teléfono
+
+===========================================
+COMANDOS ÚTILES
+===========================================
+
+# Ver estado de builds
+eas build:list
+
+# Ver detalles de un build
+eas build:view [BUILD_ID]
+
+# Descargar un build
+eas build:download [BUILD_ID]
+
+===========================================
+
+
+
+
