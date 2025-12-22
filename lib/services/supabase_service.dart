@@ -1,156 +1,175 @@
+import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/product.dart';
 
 class SupabaseService {
   final supabase = Supabase.instance.client;
+  static const String _logTag = '📊 SupabaseService';
+  
+  // PAGINACIÓN: Constantes
+  static const int DEFAULT_PAGE_SIZE = 50;
+  static const int MAX_PAGE_SIZE = 100;
 
-  // Obtener todos los productos
+  // ✅ OBTENER TODOS LOS PRODUCTOS CON TRY-CATCH Y LOGS
   Future<List<Product>> getProducts() async {
     try {
+      final startTime = DateTime.now();
+      developer.log('🔄 Iniciando cárga de productos...', name: _logTag);
+      print('$_logTag: 🔄 Iniciando cárga de productos...');
+
       final response = await supabase
           .from('productos')
-          .select('sku, nombre, imagen_url, precio')  // aquí 'precio'
+          .select('sku, nombre, imagen_url, precio')
           .order('nombre', ascending: true)
           .limit(100);
+
+      final duration = DateTime.now().difference(startTime);
+      final productCount = (response as List).length;
+
+      developer.log(
+        '✅ Cárga completada: $productCount productos en ${duration.inMilliseconds}ms',
+        name: _logTag,
+      );
+      print('$_logTag: ✅ $productCount productos cargados en ${duration.inMilliseconds}ms');
 
       return (response as List)
           .map((item) => Product.fromJson(item as Map<String, dynamic>))
           .toList();
+    } on PostgrestException catch (e) {
+      developer.log(
+        '❌ ERROR PostgreSQL: ${e.message}\nCodigo: ${e.code}',
+        name: _logTag,
+        error: e,
+      );
+      print('$_logTag: ❌ ERROR PostgreSQL: ${e.message}');
+      rethrow;
+    } on SocketException catch (e) {
+      developer.log(
+        '❌ ERROR de Red: ${e.message}',
+        name: _logTag,
+        error: e,
+      );
+      print('$_logTag: ❌ ERROR de Red: ${e.message}');
+      rethrow;
     } catch (e) {
-      print('Error obteniendo productos: $e');
+      developer.log(
+        '❌ ERROR Inesperado: $e',
+        name: _logTag,
+        error: e,
+      );
+      print('$_logTag: ❌ ERROR Inesperado: $e');
       rethrow;
     }
   }
 
-  // Obtener TODOS los productos con precio (método mejorado)
-  // Intenta diferentes nombres de tabla automáticamente
-  Future<List<Product>> getAllProducts() async {
-    // Lista de posibles nombres de tabla/vista
-    final posiblesTablas = [
-      'productos',
-      'productos_soriana',
-      'Productos_Soriana',
-      'productos_soriana_view',
-    ];
-
-    for (final nombreTabla in posiblesTablas) {
-      try {
-        print('🔍 Intentando tabla: $nombreTabla');
-        
-        final response = await supabase
-            .from(nombreTabla)
-            .select('sku, nombre, imagen_url, precio')
-            .order('nombre', ascending: true)
-            .limit(100);
-
-        print('✅ Respuesta recibida de tabla: $nombreTabla');
-        print('📊 Tipo de respuesta: ${response.runtimeType}');
-        print('📊 Longitud de respuesta: ${(response as List).length}');
-        
-        if ((response as List).isEmpty) {
-          print('⚠️ Tabla $nombreTabla existe pero está vacía');
-          continue; // Intentar siguiente tabla
-        }
-        
-        final products = (response as List)
-            .map((item) {
-              print('📦 Item recibido: $item');
-              return Product.fromJson(item as Map<String, dynamic>);
-            })
-            .toList();
-        
-        print('✅ Productos parseados desde $nombreTabla: ${products.length}');
-        return products;
-      } catch (e, stackTrace) {
-        print('❌ Error con tabla $nombreTabla: $e');
-        print('Stack trace: $stackTrace');
-        // Continuar con siguiente tabla
-        continue;
-      }
-    }
-    
-    // Si ninguna tabla funcionó, intentar sin especificar columnas
-    print('🔄 Intentando obtener todas las columnas de "productos"...');
+  // ✅ OBTENER PRODUCTOS CON PAGINACIÓN
+  Future<Map<String, dynamic>> getProductsPaginated({
+    int page = 1,
+    int pageSize = DEFAULT_PAGE_SIZE,
+  }) async {
     try {
+      if (pageSize > MAX_PAGE_SIZE) pageSize = MAX_PAGE_SIZE;
+
+      final startTime = DateTime.now();
+      final offset = (page - 1) * pageSize;
+
+      developer.log(
+        '📄 Página $page (offset: $offset, items: $pageSize)',
+        name: _logTag,
+      );
+      print('$_logTag: 📄 Cargando página $page...');
+
       final response = await supabase
           .from('productos')
-          .select()  // Obtener todas las columnas
-          .limit(5);  // Solo 5 para ver estructura
-      
-      print('📋 Estructura de datos recibida: $response');
-      if ((response as List).isNotEmpty) {
-        print('📋 Primer registro: ${(response as List).first}');
-      }
-    } catch (e) {
-      print('❌ Error obteniendo estructura: $e');
-    }
-    
-    print('⚠️ No se encontraron productos en ninguna tabla');
-    return [];
-  }
+          .select('sku, nombre, imagen_url, precio')
+          .order('nombre', ascending: true)
+          .range(offset, offset + pageSize - 1);
 
-  // Filtrar por rango de precio
-  Future<List<Product>> getByPriceRange(double minPrice, double maxPrice) async {
-    try {
-      final response = await supabase
-          .from('productos')
-          .select('sku, nombre, imagen_url, precio')  // aquí 'precio'
-          .gte('precio', minPrice)  // aquí 'precio'
-          .lte('precio', maxPrice)  // aquí 'precio'
-          .order('precio', ascending: true);  // aquí 'precio'
-
-      return (response as List)
+      final items = (response as List)
           .map((item) => Product.fromJson(item as Map<String, dynamic>))
           .toList();
+
+      final duration = DateTime.now().difference(startTime);
+
+      developer.log(
+        '✅ Página $page: ${items.length} items en ${duration.inMilliseconds}ms',
+        name: _logTag,
+      );
+      print('$_logTag: ✅ Página $page cargada');
+
+      return {
+        'items': items,
+        'page': page,
+        'pageSize': pageSize,
+        'hasMore': items.length == pageSize,
+      };
+    } on PostgrestException catch (e) {
+      developer.log(
+        '❌ ERROR en paginación: ${e.message}',
+        name: _logTag,
+        error: e,
+      );
+      print('$_logTag: ❌ ERROR: ${e.message}');
+      rethrow;
     } catch (e) {
-      print('Error filtrando por precio: $e');
-      return [];
+      developer.log('❌ ERROR: $e', name: _logTag, error: e);
+      print('$_logTag: ❌ ERROR: $e');
+      rethrow;
     }
   }
 
-  // Buscar productos por nombre
+  // ✅ BUSCAR PRODUCTOS CON TRY-CATCH Y LOGS
   Future<List<Product>> searchProducts(String query) async {
     try {
+      if (query.trim().isEmpty) return [];
+
+      developer.log('🔎 Buscando: "$query"', name: _logTag);
+      print('$_logTag: 🔎 Buscando "$query"');
+
       final response = await supabase
           .from('productos')
-          .select('sku, nombre, imagen_url, precio')  // aquí 'precio'
+          .select('sku, nombre, imagen_url, precio')
           .ilike('nombre', '%$query%')
           .order('nombre', ascending: true);
 
-      return (response as List)
+      final results = (response as List)
           .map((item) => Product.fromJson(item as Map<String, dynamic>))
           .toList();
+
+      developer.log(
+        '✅ Búsqueda: ${results.length} resultados',
+        name: _logTag,
+      );
+      print('$_logTag: ✅ ${results.length} resultados encontrados');
+
+      return results;
+    } on PostgrestException catch (e) {
+      developer.log('❌ ERROR en búsqueda: ${e.message}', name: _logTag, error: e);
+      print('$_logTag: ❌ ERROR: ${e.message}');
+      rethrow;
     } catch (e) {
-      print('Error buscando productos: $e');
-      return [];
+      developer.log('❌ ERROR: $e', name: _logTag, error: e);
+      print('$_logTag: ❌ ERROR: $e');
+      rethrow;
     }
   }
 
-  // Obtener un producto por SKU
-  Future<Product?> getProductBySku(String sku) async {
+  // ✅ PRUEBA DE CONEXIÓN
+  Future<bool> testConnection() async {
     try {
-      final response = await supabase
-          .from('productos')
-          .select()
-          .eq('sku', sku)
-          .single();
+      developer.log('🧪 Probando conexión...', name: _logTag);
+      print('$_logTag: 🧪 Probando conexión...');
 
-      return Product.fromJson(response);
+      await supabase.from('productos').select().limit(1);
+
+      developer.log('✅ CONEXIÓN EXITOSA', name: _logTag);
+      print('$_logTag: ✅ CONEXIÓN EXITOSA');
+      return true;
     } catch (e) {
-      print('Producto no encontrado: $e');
-      return null;
+      developer.log('❌ ERROR DE CONEXIÓN: $e', name: _logTag, error: e);
+      print('$_logTag: ❌ ERROR: $e');
+      return false;
     }
-  }
-
-  // Agregar imagen optimizada de R2
-  String getOptimizedImageUrl(String? imagenUrl) {
-    if (imagenUrl == null || imagenUrl.isEmpty) return '';
-    
-    // Si ya es una URL de R2, agregar parámetros de optimización
-    if (imagenUrl.contains('r2.cloudflarestorage.com')) {
-      return '$imagenUrl?format=auto&width=500&quality=80';
-    }
-    
-    return imagenUrl;
   }
 }
